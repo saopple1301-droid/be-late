@@ -29,9 +29,25 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+def new_invite_code() -> str:
+    import secrets
+
+    return secrets.token_urlsafe(6)
+
+
 class Group(SQLModel, table=True):
+    """A group of friends who meet up together.
+
+    Either created implicitly from a real LINE group chat (`line_group_id`
+    set, the bot-in-a-group flow) or created directly from the companion
+    app (`line_group_id` is None, membership managed via `invite_code`
+    instead). Both kinds behave identically once created - meetups,
+    deposits, pushes, etc. don't care which path a group came from.
+    """
+
     id: Optional[int] = Field(default=None, primary_key=True)
-    line_group_id: str = Field(index=True, unique=True)
+    line_group_id: Optional[str] = Field(default=None, index=True, unique=True)
+    invite_code: str = Field(default_factory=new_invite_code, index=True, unique=True)
     name: str = ""
     created_at: datetime = Field(default_factory=utcnow)
 

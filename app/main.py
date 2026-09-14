@@ -1,12 +1,15 @@
 import logging
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import LocationMessageContent, MessageEvent, PostbackEvent, TextMessageContent
 from sqlmodel import select
 
 from app import line_client, payments, scheduler
+from app.api import router as api_router
+from app.config import settings
 from app.database import get_session, init_db
 from app.handlers.message_handler import handle_message
 from app.handlers.postback_handler import handle_postback
@@ -16,6 +19,19 @@ from app.services import deposit_service, meetup_service
 logger = logging.getLogger("be_late")
 
 app = FastAPI(title="Be Late")
+
+_origins = ["*"] if settings.cors_allow_origins == "*" else [
+    o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router)
 
 
 @app.on_event("startup")

@@ -45,3 +45,33 @@ def group_members(session: Session, group: Group) -> list[User]:
         select(User).join(GroupMember, GroupMember.user_id == User.id).where(GroupMember.group_id == group.id)
     ).all()
     return rows
+
+
+def create_app_group(session: Session, creator: User, name: str) -> Group:
+    """Groups created directly from the companion app (no LINE group chat)."""
+    group = Group(name=name.strip() or "無題のグループ")
+    session.add(group)
+    session.commit()
+    session.refresh(group)
+    ensure_membership(session, group, creator)
+    return group
+
+
+def get_group_by_invite_code(session: Session, invite_code: str) -> Group | None:
+    return session.exec(select(Group).where(Group.invite_code == invite_code)).first()
+
+
+def get_group(session: Session, group_id: int) -> Group | None:
+    return session.get(Group, group_id)
+
+
+def user_groups(session: Session, user: User) -> list[Group]:
+    return session.exec(
+        select(Group).join(GroupMember, GroupMember.group_id == Group.id).where(GroupMember.user_id == user.id)
+    ).all()
+
+
+def is_member(session: Session, group: Group, user: User) -> bool:
+    return session.exec(
+        select(GroupMember).where(GroupMember.group_id == group.id, GroupMember.user_id == user.id)
+    ).first() is not None

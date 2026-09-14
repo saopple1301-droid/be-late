@@ -1,6 +1,9 @@
 # Be Late
 
-大学生の「待ち合わせの遅刻」を、デポジット・位置情報共有・ダウト予想ゲームで解決する LINE Bot です。
+大学生の「待ち合わせの遅刻」を、デポジット・位置情報共有・ダウト予想ゲームで解決する LINE Bot ＋ スマホ用アプリ（PWA）です。
+
+- `app/` … バックエンド（FastAPI）。LINE Bot と、アプリ用REST APIの両方を同じサーバーで提供
+- `webapp/` … スマホ用アプリ（React + Vite の PWA）。LINEログイン（LIFF）で同じユーザー・データを共有
 
 ## 解決したい課題
 
@@ -25,25 +28,29 @@
 ## アーキテクチャ
 
 ```
-LINE グループ/個別チャット
-        │  Webhook
-        ▼
-FastAPI (/callback) ── linebot v3 SDK でイベント解析
-        │
-        ├─ handlers/message_handler.py   … テキスト・位置情報メッセージ
-        ├─ handlers/postback_handler.py  … ボタン操作（メンバー選択・到着・ダウト等）
-        │
-        ├─ services/*                    … ビジネスロジック（DB更新・通知組み立て）
-        │     ├─ meetup_service   待ち合わせ作成ウィザード
-        │     ├─ deposit_service  デポジット請求
-        │     ├─ penalty_service  到着判定・ペナルティ・精算
-        │     ├─ doubt_service    ダウト予想の記録
-        │     └─ location_service 位置情報の保存・要約
-        │
-        ├─ payments.py                   … Stripe 連携（保留→capture/release, ペナルティ課金, Transfer）
-        ├─ scheduler.py                  … APScheduler（T-2hダウト開始、集合時刻判定、申告締切判定）
-        └─ models.py / database.py       … SQLModel + SQLite
+LINEグループ/個別チャット              スマホアプリ (webapp/, PWA)
+        │  Webhook                            │  LIFFログイン → Bearer ID token
+        ▼                                      ▼
+FastAPI (/callback)                    FastAPI (/api/*, app/api.py)
+        │                                      │
+        ├─ handlers/message_handler.py         │ auth.py でLIFF IDトークンを検証
+        ├─ handlers/postback_handler.py        │
+        │                                      │
+        └──────────────┬───────────────────────┘
+                        ▼
+               services/*  … ビジネスロジック（LINE Bot・アプリ共通）
+                     ├─ meetup_service   待ち合わせ作成
+                     ├─ deposit_service  デポジット請求
+                     ├─ penalty_service  到着判定・ペナルティ・精算
+                     ├─ doubt_service    ダウト予想の記録
+                     └─ location_service 位置情報の保存・要約
+                        │
+               ├─ payments.py     … Stripe 連携（保留→capture/release, ペナルティ課金, Transfer）
+               ├─ scheduler.py    … APScheduler（T-2hダウト開始、集合時刻判定、申告締切判定）
+               └─ models.py / database.py … SQLModel + SQLite
 ```
+
+LINEグループから作った待ち合わせも、アプリから作った待ち合わせも同じ `services/*` を通るため、デポジット・精算・ダウト予想のロジックは完全に共通です。アプリ経由でも、遅刻通知や到着確認などのプッシュ通知は引き続き LINE の個別トークに届きます（アプリを開いていなくても気づけるように）。
 
 詳細な設計判断は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
 
@@ -85,6 +92,37 @@ uvicorn app.main:app --reload
 pytest
 ```
 
+## スマホアプリ（webapp/）のセットアップ
+
+アプリは LINE Login (LIFF) でログインするので、バックエンドと同じ LINE チャネル内に LIFF アプリを追加で作成します。
+
+1. LINE Developers の Messaging API チャネルで「LIFF」タブから新規LIFFアプリを追加
+   - Endpoint URL: アプリを公開する URL（例: `https://your-app.example.com`）
+   - Scope: `profile`, `openid`
+2. 発行された LIFF ID を控える
+3. `webapp/.env.example` を `webapp/.env` にコピーし、`VITE_LIFF_ID` と `VITE_API_BASE_URL`（バックエンドのURL）を設定
+4. バックエンド側の `.env` にも `LIFF_CHANNEL_ID`（LIFFの発行元チャネルID = LINEログインのChannel ID）を設定（IDトークン検証に使用）
+5. バックエンドの CORS を許可するため `.env` の `CORS_ALLOW_ORIGINS` にアプリの公開URLを設定（例: `https://your-app.example.com`）
+
+```bash
+cd webapp
+npm install
+npm run dev       # 開発サーバー
+npm run build     # 本番ビルド（dist/ を任意の静的ホスティングへ）
+```
+
+PWA（ホーム画面に追加できるアプリ）として `vite-plugin-pwa` でビルドされるため、`npm run build` の成果物をHTTPSで配信すればオフライン起動・ホーム画面追加に対応します。
+
+### アプリでできること
+
+- LINEログインでそのままアカウント連携（LINE Botと同じユーザー・デポジット・精算データを共有）
+- グループ作成／招待コードでの参加（LINEグループに縛られず、アプリだけでも友達を集められます）
+- メンバー・デポジット・場所・時刻を選んで待ち合わせ作成
+- 地図上でメンバーの現在地を確認（OpenStreetMap + Leaflet）、現在地の共有
+- 到着ボタン、遅刻時の「何分以内に到着するか」申告
+- ダウト予想（自分の予想だけが見える。他人の予想は一切表示されません）
+- 精算結果の確認、デポジット用カードの登録（Stripe Checkoutへ遷移）
+
 ## 使い方（LINEでの操作）
 
 1. ボットを LINE グループに招待し、参加者全員が一度何かメッセージを送る（ボットがメンバーを認識するために必要）
@@ -98,6 +136,7 @@ pytest
 
 ## 既知の制約
 
+- アプリの `/api/*` は LIFF ID トークンでの認証必須です。ネイティブアプリのApp Store配布は行っておらず、PWA（ブラウザ／ホーム画面追加で使うWebアプリ）としての提供です
 - 時刻はサーバーのローカルタイムで解釈します（タイムゾーンを扱いたい場合は `TZ` 環境変数をサーバーに設定してください）
 - デポジット・ペナルティの決済はカード情報をLINE上で直接扱えないため、初回は Stripe Checkout の決済リンクを送る形になります
 - 払い戻し（Stripe Connect Transfer）は受取人が Connect アカウントを設定している場合のみ自動化されます。未設定の場合はアプリ外での手動精算が必要です
