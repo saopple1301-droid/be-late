@@ -19,24 +19,13 @@ def request_deposit(session: Session, meetup: Meetup, participant: MeetupPartici
         return
 
     result = payments.hold_deposit(user, participant.deposit_amount, meetup.id, participant.id)
-    session.add(user)  # picks up a freshly-created stripe_customer_id, if any
-
-    if result.status == "authorized":
-        participant.deposit_status = DepositStatus.AUTHORIZED
-        participant.deposit_intent_id = result.intent_id
-        session.add(participant)
-        session.commit()
-        line_client.push(user.line_user_id, [fx.text(
-            f"「{meetup.place_name}」のデポジット ¥{participant.deposit_amount} を確保しました。"
-        )])
-    elif result.status == "requires_action":
-        session.commit()
-        line_client.push(user.line_user_id, [fx.checkout_link_message(result.checkout_url, "デポジット")])
-    else:
-        participant.deposit_status = DepositStatus.FAILED
-        session.add(participant)
-        session.commit()
-        line_client.push(user.line_user_id, [fx.text("デポジットの確保に失敗しました。カード情報をご確認ください。")])
+    participant.deposit_status = DepositStatus.AUTHORIZED
+    participant.deposit_intent_id = result.intent_id
+    session.add(participant)
+    session.commit()
+    line_client.push(user.line_user_id, [fx.text(
+        f"「{meetup.place_name}」のデポジット ¥{participant.deposit_amount} を確保しました。（デモ環境のため実際の決済は発生しません）"
+    )])
 
 
 def all_deposits_ready(participants: list[MeetupParticipant]) -> bool:

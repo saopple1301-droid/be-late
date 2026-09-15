@@ -1,8 +1,6 @@
 export interface Me {
   id: number
   display_name: string
-  has_payment_method: boolean
-  payout_ready: boolean
 }
 
 export interface Group {

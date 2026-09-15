@@ -83,30 +83,18 @@ def enforce_declared_deadline(session: Session, meetup: Meetup, participant: Mee
 
     if participant.deposit_status == DepositStatus.AUTHORIZED and participant.deposit_intent_id:
         payments.capture_deposit(participant.deposit_intent_id)
-        participant.deposit_status = DepositStatus.CAPTURED
-    elif participant.deposit_status == DepositStatus.AUTHORIZED:
-        participant.deposit_status = DepositStatus.CAPTURED  # zero-amount deposit
+    participant.deposit_status = DepositStatus.CAPTURED
 
     if participant.deposit_amount > 0:
         _notify_others(session, meetup, exclude_user_id=participant.user_id,
                         message=fx.deposit_forfeited_announcement(user.display_name, participant.deposit_amount))
 
-    if participant.deposit_amount > 0:
         result = payments.charge_penalty(user, participant.deposit_amount, meetup.id, participant.id)
-        if result.status == "captured":
-            participant.penalty_amount = participant.deposit_amount
-            participant.penalty_status = "charged"
-            participant.penalty_intent_id = result.intent_id
-        elif result.status == "requires_action":
-            participant.penalty_amount = participant.deposit_amount
-            participant.penalty_status = "charged"
-            line_client.push(user.line_user_id, [fx.checkout_link_message(result.checkout_url, "遅刻ペナルティ")])
-        else:
-            participant.penalty_status = "failed"
-
-        if participant.penalty_status == "charged":
-            _notify_others(session, meetup, exclude_user_id=participant.user_id,
-                            message=fx.penalty_charged_announcement(user.display_name, participant.penalty_amount))
+        participant.penalty_amount = participant.deposit_amount
+        participant.penalty_status = "charged"
+        participant.penalty_intent_id = result.intent_id
+        _notify_others(session, meetup, exclude_user_id=participant.user_id,
+                        message=fx.penalty_charged_announcement(user.display_name, participant.penalty_amount))
 
     session.add(participant)
     session.commit()
@@ -219,10 +207,7 @@ def _settle(session: Session, meetup: Meetup, participants: list[MeetupParticipa
             status = payments.payout_member(user, p.payout_amount, meetup.id)
             p.payout_status = status
             session.add(p)
-            summary_lines.append(
-                f"{user.display_name}: +¥{p.payout_amount}"
-                + ("（送金済み）" if status == "transferred" else "（要・手動精算）")
-            )
+            summary_lines.append(f"{user.display_name}: +¥{p.payout_amount}（デモ精算）")
         elif p.is_late:
             lost = p.deposit_amount + p.penalty_amount
             summary_lines.append(f"{user.display_name}: -¥{lost}（遅刻）")

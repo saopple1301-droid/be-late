@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlmodel import Session
 
 from app import flex_messages as fx
-from app import line_client, payments, scheduler
+from app import line_client, scheduler
 from app.auth import get_current_user
 from app.database import get_session
 from app.models import DoubtPrediction, Meetup, MeetupParticipant, MeetupStatus, User
@@ -55,18 +55,7 @@ def me(current_user: User = CurrentUser):
     return {
         "id": current_user.id,
         "display_name": current_user.display_name,
-        "has_payment_method": bool(current_user.default_payment_method_id),
-        "payout_ready": bool(current_user.stripe_account_id),
     }
-
-
-@router.post("/card-setup")
-def card_setup(current_user: User = CurrentUser, session: Session = Db):
-    user = session.get(User, current_user.id)
-    url = payments.create_card_setup_checkout_url(user, "/stripe/setup-return")
-    session.add(user)
-    session.commit()
-    return {"url": url}
 
 
 # --------------------------------------------------------------- groups --

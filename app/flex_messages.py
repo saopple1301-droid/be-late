@@ -90,20 +90,6 @@ def confirm_flex(place: str, scheduled_at_str: str, deposit: int, member_names: 
     return FlexMessage(altText="待ち合わせの確認", contents=bubble)
 
 
-# --------------------------------------------------------------- deposit --
-
-def card_setup_message(checkout_url: str) -> TextMessage:
-    return text(
-        "デポジット決済用のカードが未登録です。下のリンクからカードを登録してください（初回のみ）:\n"
-        f"{checkout_url}\n"
-        "登録後、あらためてデポジットを請求します。"
-    )
-
-
-def checkout_link_message(checkout_url: str, purpose: str) -> TextMessage:
-    return text(f"{purpose}の決済手続きをお願いします:\n{checkout_url}")
-
-
 # ---------------------------------------------------------------- arrive --
 
 def arrival_button_flex(meetup_id: int, place: str) -> FlexMessage:

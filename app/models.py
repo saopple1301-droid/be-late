@@ -1,8 +1,9 @@
 """Database models.
 
-Money amounts are stored as integers in the smallest *counting* unit of the
-configured currency (yen has no subunit, so ¥500 == 500). Adjust if you
-switch CURRENCY to a currency with decimal subunits.
+Money amounts are stored as integers in yen (no subunit, so ¥500 == 500).
+This is a hackathon demo build: no real payment processor is wired in (see
+app/payments.py), so deposit/penalty/payout amounts are tracked purely as a
+simulated ledger here.
 """
 from datetime import datetime
 from typing import Optional
@@ -18,13 +19,6 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     line_user_id: str = Field(index=True, unique=True)
     display_name: str = ""
-
-    stripe_customer_id: Optional[str] = None
-    default_payment_method_id: Optional[str] = None
-    # Stripe Connect account used to receive payouts of forfeited deposits.
-    # Optional: a user can participate and pay without ever setting this up,
-    # they just won't be able to receive automatic payouts (see payments.py).
-    stripe_account_id: Optional[str] = None
 
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -83,9 +77,9 @@ class Meetup(SQLModel, table=True):
 
 
 class DepositStatus:
-    PENDING = "pending"          # created, waiting on user to authorize payment
-    AUTHORIZED = "authorized"    # held (manual-capture PaymentIntent succeeded)
-    CAPTURED = "captured"        # forfeited to the group, captured on Stripe
+    PENDING = "pending"          # created, not yet held
+    AUTHORIZED = "authorized"    # held (simulated - see app/payments.py)
+    CAPTURED = "captured"        # forfeited to the group
     RELEASED = "released"        # returned to the user (arrived on time)
     FAILED = "failed"
 

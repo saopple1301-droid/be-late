@@ -2,8 +2,6 @@ import os
 
 os.environ.setdefault("LINE_CHANNEL_SECRET", "test")
 os.environ.setdefault("LINE_CHANNEL_ACCESS_TOKEN", "test")
-os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_dummy")
-os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_dummy")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 import pytest
@@ -23,13 +21,12 @@ def session(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
-    """Every test runs with LINE pushes/replies and Stripe payouts stubbed out."""
-    from app import line_client, payments
+    """Every test runs with LINE pushes/replies stubbed out (payments.py is
+    already a no-op simulation - see app/payments.py - so it needs no
+    stubbing)."""
+    from app import line_client
 
     sent = []
     monkeypatch.setattr(line_client, "push", lambda to, messages: sent.append(("push", to, messages)))
     monkeypatch.setattr(line_client, "reply", lambda token, messages: sent.append(("reply", token, messages)))
-    monkeypatch.setattr(payments, "release_deposit", lambda intent_id: None)
-    monkeypatch.setattr(payments, "capture_deposit", lambda intent_id: None)
-    monkeypatch.setattr(payments, "payout_member", lambda user, amount, meetup_id: "transferred")
     yield sent

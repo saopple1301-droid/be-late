@@ -1,7 +1,7 @@
 from linebot.v3.webhooks import LocationMessageContent, MessageEvent, TextMessageContent
 
 from app import flex_messages as fx
-from app import line_client, payments
+from app import line_client
 from app.database import get_session
 from app.services import identity_service, location_service, meetup_service
 
@@ -11,7 +11,7 @@ HELP_TEXT = (
     "「位置」でメンバーの現在地を確認できます。\n"
     "位置情報メッセージを送ると、あなたの現在地が共有されます。\n"
     "集合時刻になっても到着していない場合、遅刻を申告するボタンが届きます。\n"
-    "「カード登録」で、デポジット・ペナルティ決済用のカードを事前登録できます。"
+    "（デモ環境のため、デポジット・ペナルティの決済は実際には発生しません）"
 )
 
 
@@ -62,13 +62,6 @@ def _handle_text(event: MessageEvent) -> None:
                 return
             lines = location_service.build_summary_lines(session, meetup.id)
             line_client.reply(event.reply_token, [fx.location_summary_text(lines)])
-            return
-
-        if text_in in ("カード登録", "カード", "card"):
-            url = payments.create_card_setup_checkout_url(user, "/stripe/setup-return")
-            session.add(user)
-            session.commit()
-            line_client.reply(event.reply_token, [fx.card_setup_message(url)])
             return
 
         if group:
